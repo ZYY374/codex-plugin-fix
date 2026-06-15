@@ -1,6 +1,6 @@
 # Codex Toolkit
 
-一套完整的 Codex Desktop 插件修复与配置管理工具集。
+一套完整的 Codex Desktop **Computer Use** **Chrome** 插件修复与配置管理工具集。
 
 ## 🚀 快速开始
 
