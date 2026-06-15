@@ -1,56 +1,91 @@
 ---
 name: codex-plugin-fix
-description: Codex Desktop 自动更新后修复插件（Computer Use、Chrome、Browser）报错、不显示、安装失败的完整流程
+description: Codex Desktop 插件问题一站式修复 — 支持自动更新后修复、备份恢复、Chrome 配置、更换 API 供应商等场景。
+trigger: Codex 插件报错、消失、安装失败、更新后异常
 ---
 
 # Codex 插件修复技能
 
-当 Codex Desktop 自动更新后插件（Computer Use、Chrome、Browser 等）出现报错、不显示、安装失败时，按以下流程排查修复。
+## 适用场景
 
-## 流程概览
-
-```
-Codex 自动更新
-  → 检查版本号 & MSIX 路径
-  → 检查 config.toml 运行时 hash
-  → 修复 @oai/sky exports
-  → 同步 marketplace 文件
-  → Chrome 特有：注册表 + manifest
-  → 重启 Codex
-```
+| 场景 | 症状 | 跳转 |
+|------|------|------|
+| 🔄 自动更新后异常 | 插件报 `exports` 错、市场找不到插件 | [场景 A](#场景-a自动更新后修复) |
+| 🔑 更换 API 供应商 | 插件配置丢失、市场节消失 | [场景 B](#场景-b更换-api-供应商后修复) |
+| 🌐 Chrome 插件专属 | Chrome 插件安装失败 | [场景 C](#场景-cchrome-插件专属) |
+| 💾 备份/恢复 | 防止配置丢失 | [场景 D](#场景-d备份与恢复) |
+| 🔍 不确定问题 | 先诊断再对症 | [诊断流程](#0-诊断先查清楚再动手) |
 
 ---
 
-## 1. 检查版本和路径
+## 0. 诊断：先查清楚再动手
 
 ```powershell
-# Codex 版本
+# 1. Codex 版本
 $pkg = Get-AppxPackage -Name "OpenAI.Codex"
-$pkg.Version  # 如 26.609.4994.0
+Write-Host "Codex: $($pkg.Version)"
 
-# MSIX marketplace 新位置（26.608+）
-$msixMkt = "$($pkg.InstallLocation)\app\resources\plugins\openai-bundled"
+# 2. 运行时
+$runtimeDir = "$env:LOCALAPPDATA\OpenAI\Codex\runtimes\cua_node"
+Get-ChildItem $runtimeDir -Directory | ForEach-Object { Write-Host "Runtime: $($_.Name)" }
+$runtimeHash = (Get-ChildItem $runtimeDir -Directory | Sort-Object LastWriteTime -Descending)[0].Name
 
-# 当前运行时
-Get-ChildItem "$env:LOCALAPPDATA\OpenAI\Codex\runtimes\cua_node" -Directory
+# 3. Marketplace 状态
+$codexHome = "$env:USERPROFILE\.codex"
+$mktDest = "$codexHome\marketplaces\openai-bundled"
+Write-Host "Marketplace exists: $(Test-Path $mktDest)"
+if (Test-Path $mktDest) {
+    Write-Host "Marketplace files: $((Get-ChildItem $mktDest -Recurse -File).Count)"
+    Write-Host "Plugin version: $((Get-Content '$mktDest\plugins\computer-use\.codex-plugin\plugin.json' -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue).version)"
+}
 
-# 路径变量（后续步骤复用）
+# 4. config.toml 关键项
+$configPath = "$codexHome\config.toml"
+$config = [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($configPath))
+Write-Host "Has marketplace section: $($config -match '\[marketplaces\.openai-bundled\]')"
+Write-Host "Has computer_use: $($config -match 'computer_use = true')"
+Write-Host "Has browser plugin: $($config -match 'browser@openai-bundled')"
+Write-Host "Has chrome plugin: $($config -match 'chrome@openai-bundled')"
+Write-Host "Runtime hash in config matches: $($config -match $runtimeHash)"
+```
+
+输出解读：
+
+| 检查项 | 异常值 | 对应修复 |
+|--------|--------|----------|
+| Marketplace exists | False 或 files < 500 | [场景 A-步骤 2](#a2-同步-marketplace-文件) |
+| Plugin version 与 Codex 不同 | 版本号差异大 | [场景 A-步骤 2](#a2-同步-marketplace-文件) |
+| Has marketplace section | False | [场景 A-步骤 5b](#a5b-确保-marketplace-节存在) |
+| Has computer_use | False | [场景 A-步骤 5e](#a5e-确保-features-开启) |
+| Has browser/chrome plugin | False | [场景 A-步骤 5c](#a5c-确保插件已启用) |
+| Runtime hash matches | False | [场景 A-步骤 5a](#a5a-更新运行时-hash) |
+
+---
+
+## 场景 A：自动更新后修复
+
+流程：`诊断 → 同步文件 → 修复 exports → 更新 config → Chrome 专属 → 清缓存 → 重启`
+
+### A1. 确认版本
+
+```powershell
+$pkg = Get-AppxPackage -Name "OpenAI.Codex"
 $codexHome = "$env:USERPROFILE\.codex"
 $mktDest = "$codexHome\marketplaces\openai-bundled"
 $runtimeDir = "$env:LOCALAPPDATA\OpenAI\Codex\runtimes\cua_node"
+$runtimeHash = (Get-ChildItem $runtimeDir -Directory | Sort-Object LastWriteTime -Descending)[0].Name
+$msixMkt = "$($pkg.InstallLocation)\app\resources\plugins\openai-bundled"
 ```
 
-## 2. 同步 marketplace 文件
+### A2. 同步 marketplace 文件
 
-MSIX 内置市场文件是**最新**且**完整**的（含 scripts/node_modules）。必须复制到非隐藏目录。
+> **原理**：Codex 自动更新后 MSIX 内置市场文件是最新的，但不会自动同步到用户目录。旧文件版本不匹配导致 Codex 不认。
 
 ```powershell
-$msixMkt = "$($pkg.InstallLocation)\app\resources\plugins\openai-bundled"
-
-# 清旧 + 复制（EFS 绕过）
 cmd /c "rmdir /s /q `"$mktDest`"" 2>$null
 [System.IO.Directory]::CreateDirectory($mktDest) | Out-Null
 
+# EFS 绕过复制（WindowsApps 目录有加密）
 function Copy-EFS { param($s,$d)
     if (!(Test-Path $d)) { [System.IO.Directory]::CreateDirectory($d)|Out-Null }
     Get-ChildItem $s | % {
@@ -60,71 +95,67 @@ function Copy-EFS { param($s,$d)
     }
 }
 Copy-EFS $msixMkt $mktDest
+Write-Host "Files: $((Get-ChildItem $mktDest -Recurse -File).Count)"
 ```
 
-**⚠️ critical**: 目标目录必须是**非隐藏**目录（如 `marketplaces\` 而非 `.tmp\`），不能用 `\\?\` 前缀。
+**⚠️ 关键规则**：
+- 目标目录必须**非隐藏**（`marketplaces\` ✅，`.tmp\` ❌）
+- 路径不要用 `\\?\` 前缀
+- `.codex` 目录有 EFS 加密，只能用 `[System.IO.File]::WriteAllBytes` 写文件
 
-## 3. 补充 computer-use 的 @oai/sky
-
-MSIX 的 computer-use 插件不包含 `node_modules/@oai/sky`，需从运行时补：
+### A3. 补充 computer-use 的 @oai/sky
 
 ```powershell
-# 找到最新运行时 hash
-$runtimeHash = (Get-ChildItem $runtimeDir -Directory | Sort-Object LastWriteTime -Descending)[0].Name
 $runtimeSky = "$runtimeDir\$runtimeHash\bin\node_modules\@oai\sky"
 $destSky = "$mktDest\plugins\computer-use\node_modules\@oai\sky"
 Copy-EFS $runtimeSky $destSky
 ```
 
-## 4. 修复 @oai/sky exports
+### A4. 修复 @oai/sky exports
 
-`computer-use-client.mjs` 需要的子路径不在 exports 中，Node.js 会拒绝导入。
+> **原理**：`computer-use-client.mjs` import 了 `@oai/sky` 的子路径，但 `package.json` 的 `exports` 字段没声明。Node.js 严格执行 exports 限制，拒绝导入。
 
 ```powershell
-# 修复 marketplace 中的 @oai/sky
+$subpath = "./dist/project/cua/sky_js/src/targets/windows/internal/computer_use_client_base.js"
+
+# Marketplace 中的 @oai/sky
 $skyPkg = "$mktDest\plugins\computer-use\node_modules\@oai\sky\package.json"
 $json = Get-Content $skyPkg -Raw | ConvertFrom-Json
-$json.exports | Add-Member -MemberType NoteProperty `
-  -Name "./dist/project/cua/sky_js/src/targets/windows/internal/computer_use_client_base.js" `
-  -Value "./dist/project/cua/sky_js/src/targets/windows/internal/computer_use_client_base.js" -Force
+$json.exports | Add-Member -MemberType NoteProperty -Name $subpath -Value $subpath -Force
 $json | ConvertTo-Json -Depth 10 | Set-Content $skyPkg -Encoding UTF8
 
-# 同样修复运行时中的 @oai/sky
+# 运行时中的 @oai/sky
 $runtimeSkyPkg = "$runtimeDir\$runtimeHash\bin\node_modules\@oai\sky\package.json"
 $json2 = Get-Content $runtimeSkyPkg -Raw | ConvertFrom-Json
-$json2.exports | Add-Member -MemberType NoteProperty `
-  -Name "./dist/project/cua/sky_js/src/targets/windows/internal/computer_use_client_base.js" `
-  -Value "./dist/project/cua/sky_js/src/targets/windows/internal/computer_use_client_base.js" -Force
+$json2.exports | Add-Member -MemberType NoteProperty -Name $subpath -Value $subpath -Force
 $json2 | ConvertTo-Json -Depth 10 | Set-Content $runtimeSkyPkg -Encoding UTF8
 ```
 
-## 5. 更新 config.toml
+### A5. 更新 config.toml
 
-config.toml 受 EFS/权限保护，**只能用 `[System.IO.File]::WriteAllBytes` 写入**。
-
-### 5a. 更新运行时 hash（4 处）
+> **原理**：`config.toml` 受 EFS 加密 + Codex 沙箱保护，普通工具写不进去。必须用 `[System.IO.File]::WriteAllBytes`。
 
 ```powershell
 $configPath = "$codexHome\config.toml"
 $bytes = [System.IO.File]::ReadAllBytes($configPath)
 $content = [System.Text.Encoding]::UTF8.GetString($bytes)
+```
 
-# 找到旧 hash（从 config 中读取）
+#### A5a. 更新运行时 hash
+
+Codex 更新后运行时 hash 会变，config.toml 中 4 处引用必须更新：
+
+- `notify`
+- `command`
+- `NODE_REPL_NODE_MODULE_DIRS`
+- `NODE_REPL_NODE_PATH`
+
+```powershell
 if ($content -match 'cua_node\\([a-f0-9]+)\\') { $oldHash = $Matches[1] }
 $content = $content -replace $oldHash, $runtimeHash
-
-[System.IO.File]::WriteAllBytes($configPath, [System.Text.Encoding]::UTF8.GetBytes($content))
 ```
 
-影响的行：
-```
-notify = "...\\<old_hash>\\..."
-command = '...\\<old_hash>\\...'
-NODE_REPL_NODE_MODULE_DIRS = '...\\<old_hash>\\...'
-NODE_REPL_NODE_PATH = '...\\<old_hash>\\...'
-```
-
-### 5b. 确保 marketplace 节存在
+#### A5b. 确保 marketplace 节存在
 
 ```toml
 [marketplaces.openai-bundled]
@@ -133,59 +164,116 @@ source = '<codexHome>\\marketplaces\\openai-bundled'
 source_type = "local"
 ```
 
-**⚠️ critical**: 不能有 `\\?\` 前缀！source 必须用普通绝对路径。
-
-如果 config.toml 缺少此节：
-
 ```powershell
-$escapedHome = $codexHome -replace '\\', '\\'
-$mktSection = @"
+if ($content -notmatch '\[marketplaces\.openai-bundled\]') {
+    $escapedHome = $codexHome -replace '\\', '\\'
+    $mktSection = @"
 [marketplaces.openai-bundled]
 last_updated = "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))"
 source = '$escapedHome\\marketplaces\\openai-bundled'
 source_type = "local"
 
 "@
-$content = $content -replace '(\[plugins\])', "$mktSection`n`$1"
-[System.IO.File]::WriteAllBytes($configPath, [System.Text.Encoding]::UTF8.GetBytes($content))
+    $content = $content -replace '(\[plugins\])', "$mktSection`n`$1"
+}
 ```
 
-### 5c. 确保插件已启用
-
-```toml
-[plugins."computer-use@openai-bundled"]
-enabled = true
-[plugins."browser@openai-bundled"]
-enabled = true
-[plugins."chrome@openai-bundled"]
-enabled = true
-```
-
-### 5d. 更新版本号
+#### A5c. 确保插件已启用
 
 ```powershell
-$pluginVer = (Get-Content "$mktDest\plugins\computer-use\.codex-plugin\plugin.json" -Raw | ConvertFrom-Json).version
+if ($content -notmatch 'computer-use@openai-bundled') {
+    $content = $content -replace '(\[plugins\.)', "[plugins.`"computer-use@openai-bundled`"]`nenabled = true`n`$1"
+}
+if ($content -notmatch 'browser@openai-bundled') {
+    $content = $content -replace '(\[plugins\.)', "[plugins.`"browser@openai-bundled`"]`nenabled = true`n`$1"
+}
+if ($content -notmatch 'chrome@openai-bundled') {
+    $content = $content -replace '(\[plugins\.)', "[plugins.`"chrome@openai-bundled`"]`nenabled = true`n`$1"
+}
+```
+
+#### A5d. 更新版本号
+
+```powershell
+$pluginVer = (Get-Content "$mktDest\plugins\chrome\.codex-plugin\plugin.json" -Raw | ConvertFrom-Json).version
 $content = $content -replace 'BROWSER_USE_CODEX_APP_VERSION = "[^"]*"', "BROWSER_USE_CODEX_APP_VERSION = `"$pluginVer`""
 ```
 
-### 5e. 确保 features 开启
+#### A5e. 确保 features 开启
 
-```toml
-[features]
-computer_use = true
-memories = true
+```powershell
+if ($content -notmatch 'computer_use = true') {
+    $content = $content -replace '\[features\]', "[features]`ncomputer_use = true`nmemories = true"
+}
 ```
 
-## 6. Chrome 插件专属修复
+#### A5f. 写入
 
-Chrome 插件安装需要 3 样东西：
+```powershell
+[System.IO.File]::WriteAllBytes($configPath, [System.Text.Encoding]::UTF8.GetBytes($content))
+```
+
+### A6. Chrome 插件专属
+
+见 [场景 C](#场景-cchrome-插件专属)。
+
+### A7. 清理缓存
+
+```powershell
+cmd /c "rmdir /s /q `"$codexHome\plugins\cache\openai-bundled`"" 2>$null
+```
+
+### A8. 最终验证
+
+```powershell
+Write-Host "=== 验证结果 ==="
+Write-Host "Marketplace: $((Get-ChildItem $mktDest -Recurse -File).Count) files"
+Write-Host "Plugin ver: $((Get-Content '$mktDest\plugins\computer-use\.codex-plugin\plugin.json' -Raw|ConvertFrom-Json).version)"
+Write-Host "Config OK: $(([System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($configPath))) -match '\[marketplaces\.openai-bundled\]')"
+Write-Host "Chrome reg: $(cmd /c 'reg query HKCU\Software\Google\Chrome\NativeMessagingHosts\com.openai.codexextension 2>&1')"
+```
+
+**重启 Codex Desktop**。
+
+---
+
+## 场景 B：更换 API 供应商后修复
+
+> **原理**：更换供应商时 Codex 会重写 `config.toml`，清空 marketplace 配置、插件条目、features 等。
+
+### B1. 更换前备份（下次用）
+
+```powershell
+$backupDir = "$env:USERPROFILE\.codex\backups"
+New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+$timestamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
+Copy-Item "$env:USERPROFILE\.codex\config.toml" "$backupDir\config-$timestamp.toml"
+Write-Host "Backed up to: $backupDir\config-$timestamp.toml"
+```
+
+### B2. 更换后修复
+
+更换供应商完成后，跑一遍 [场景 A 的诊断](#0-诊断先查清楚再动手)，看哪些配置丢了，然后跳到对应的 A5 子步骤补回。
+
+最常丢的：
+- [A5b](#a5b-确保-marketplace-节存在) — marketplace 节
+- [A5c](#a5c-确保插件已启用) — browser / chrome 插件条目
+- [A5e](#a5e-确保-features-开启) — `computer_use = true`
+
+---
+
+## 场景 C：Chrome 插件专属
+
+> **原理**：Chrome 插件需要通过 Windows 注册表 + Native Messaging 机制与 Chrome 浏览器通信。仅复制 marketplace 文件不够。
 
 ```powershell
 $extId = "hehggadaopoacecdllhhajmbjkdcmajg"  # 来自 extension-id.json
 $extHost = "$mktDest\plugins\chrome\extension-host\windows\x64\extension-host.exe"
 $extHostDir = Split-Path $extHost -Parent
+$runtimeDir = "$env:LOCALAPPDATA\OpenAI\Codex\runtimes\cua_node"
+$runtimeHash = (Get-ChildItem $runtimeDir -Directory | Sort-Object LastWriteTime -Descending)[0].Name
 
-# 6a. Native messaging manifest
+# C1. Native Messaging Manifest
 $manifestDir = "$env:LOCALAPPDATA\OpenAI\extension"
 [System.IO.Directory]::CreateDirectory($manifestDir) | Out-Null
 $manifest = @{
@@ -195,13 +283,13 @@ $manifest = @{
     path = $extHost
     type = "stdio"
 } | ConvertTo-Json -Depth 3
-[System.IO.File]::WriteAllBytes("$manifestDir\com.openai.codexextension.json", 
+[System.IO.File]::WriteAllBytes("$manifestDir\com.openai.codexextension.json",
     [System.Text.Encoding]::UTF8.GetBytes($manifest))
 
-# 6b. Registry
+# C2. 注册表
 cmd /c "reg add `"HKCU\Software\Google\Chrome\NativeMessagingHosts\com.openai.codexextension`" /ve /t REG_SZ /d `"$manifestDir\com.openai.codexextension.json`" /f"
 
-# 6c. Extension host config（extension-host.exe 同级目录）
+# C3. Extension Host 配置
 $appConfig = @{
     browserClientPath = "$mktDest\plugins\chrome\scripts\browser-client.mjs"
     channel = "prod"
@@ -215,31 +303,71 @@ $appConfig = @{
     [System.Text.Encoding]::UTF8.GetBytes($appConfig))
 ```
 
-## 7. 清理插件缓存
+---
+
+## 场景 D：备份与恢复
+
+### D1. 创建备份
 
 ```powershell
-cmd /c "rmdir /s /q `"$codexHome\plugins\cache\openai-bundled`"" 2>$null
+$codexHome = "$env:USERPROFILE\.codex"
+$backupDir = "$codexHome\backups"
+$timestamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
+New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+
+# 备份 config.toml
+Copy-Item "$codexHome\config.toml" "$backupDir\config-$timestamp.toml"
+
+# 备份 marketplace
+if (Test-Path "$codexHome\marketplaces") {
+    Compress-Archive -Path "$codexHome\marketplaces" -DestinationPath "$backupDir\marketplaces-$timestamp.zip" -Force
+}
+
+Write-Host "Backup complete: $backupDir"
+Get-ChildItem $backupDir | Select-Object Name, Length
 ```
 
-## 8. 最终验证
+### D2. 恢复
 
 ```powershell
-Write-Host "Marketplace files: $((Get-ChildItem $mktDest -Recurse -File).Count)"
-Write-Host "Plugin version: $((Get-Content '$mktDest\plugins\computer-use\.codex-plugin\plugin.json' -Raw|ConvertFrom-Json).version)"
-Write-Host "config marketplace: $(Select-String -Path $codexHome\config.toml -Pattern 'source = .*marketplaces.*openai-bundled')"
-Write-Host "Chrome registry: $(cmd /c 'reg query HKCU\Software\Google\Chrome\NativeMessagingHosts\com.openai.codexextension 2>&1')"
+$backupDir = "$env:USERPROFILE\.codex\backups"
+$latestConfig = Get-ChildItem "$backupDir\config-*.toml" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+# 恢复 config
+$bytes = [System.IO.File]::ReadAllBytes($latestConfig.FullName)
+[System.IO.File]::WriteAllBytes("$env:USERPROFILE\.codex\config.toml", $bytes)
+
+# 恢复 marketplace（如果有 zip）
+$latestMkt = Get-ChildItem "$backupDir\marketplaces-*.zip" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if ($latestMkt) {
+    Expand-Archive -Path $latestMkt.FullName -DestinationPath "$env:USERPROFILE\.codex\marketplaces" -Force
+}
+
+Write-Host "Restored from: $($latestConfig.Name)"
 ```
 
 ---
 
-## 常见陷阱
+## 常见陷阱速查
 
 | 问题 | 原因 | 解决 |
 |------|------|------|
-| 市场找不到插件 | marketplace 目录隐藏或 `\\?\` 前缀 | 用普通路径 + 非隐藏目录 |
-| Computer Use 报 exports 错 | `@oai/sky` exports 缺少子路径 | 手动添加 |
-| 安装失败 | 缓存过时或权限问题 | 清缓存 + 检查 marketplace 来源 |
-| 换供应商后插件全丢 | Codex 重置 config.toml | 重跑步骤 5b-5e |
-| config.toml 写不进去 | EFS 加密 + 权限限制 | 用 `[System.IO.File]::WriteAllBytes` |
-| Chrome 插件装不上 | 注册表/manifest 未创建 | 执行步骤 6 |
-| 插件版本不匹配 | Codex 更了新版本 | 重跑步骤 2-3 从新 MSIX 复制 |
+| 市场找不到插件 | 目录隐藏或 `\\?\` 前缀 | 用普通路径 + 非隐藏目录 |
+| Computer Use 报 exports 错 | `@oai/sky` exports 缺少子路径 | [A4](#a4-修复-oaisky-exports) |
+| 安装失败 | 缓存过时或权限问题 | 清缓存 → [A7](#a7-清理缓存) |
+| 换供应商后插件全丢 | Codex 重置 config.toml | [场景 B](#场景-b更换-api-供应商后修复) |
+| config.toml 写不进去 | EFS 加密 + 权限 | `[System.IO.File]::WriteAllBytes` |
+| Chrome 装不上 | 注册表/manifest 缺失 | [场景 C](#场景-cchrome-插件专属) |
+| 版本不匹配 | Codex 又更新了 | 重跑 [A2](#a2-同步-marketplace-文件) |
+
+---
+
+## 给其他 Agent 的使用说明
+
+本技能设计为 Reasonix skill 格式。其他用户可以通过以下方式加载：
+
+1. **直接安装**：`/install-skill https://github.com/ZYY374/codex-plugin-fix`
+2. **手动复制**：将本文件放入 `.reasonix/skills/codex-plugin-fix/SKILL.md`
+3. **独立脚本**：运行 `scripts/fix-codex-plugins.ps1`（无需 Reasonix）
+
+技能会先跑 [诊断](#0-诊断先查清楚再动手)，然后根据输出跳转到对应场景执行修复。

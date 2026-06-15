@@ -1,44 +1,77 @@
-# Codex Plugin Fix
+# Codex Toolkit
 
-一键修复 Codex Desktop 自动更新后 Computer Use、Chrome、Browser 等插件的报错/消失/安装失败问题。
+一套完整的 Codex Desktop 插件修复与配置管理工具集。
 
-## 适用场景
+## 🚀 快速开始
 
-- Codex Desktop 自动更新后，Computer Use 插件报 `exports` 错误
-- 插件市场中找不到 Chrome / Computer Use / Browser 插件
-- 插件能看到但安装失败
-- 更换 API 供应商后插件配置丢失
+### 如果你是 Reasonix 用户
 
-## 快速使用
+加载技能：
+```
+/install-skill https://github.com/ZYY374/codex-plugin-fix
+```
 
-将 `SKILL.md` 作为 Reasonix 技能加载，然后执行：
-
+然后遇到问题时：
 ```
 /codex-plugin-fix
 ```
 
-或直接在 PowerShell（管理员）中按 `SKILL.md` 的步骤逐步执行。
+### 如果你不用 Reasonix
 
-## 修复流程
+直接跑脚本：
+```powershell
+powershell -ExecutionPolicy Bypass -File fix-codex-plugins.ps1
+```
+
+## 📦 包含什么
 
 ```
-检查版本 → 同步 marketplace → 补 @oai/sky → 修 exports → 改 config.toml → Chrome 注册表 → 清缓存 → 重启
+codex-plugin-fix/
+├── SKILL.md                         ← Reasonix 技能（Agent 直接读）
+├── README.md                        ← 你在这里
+├── scripts/
+│   └── fix-codex-plugins.ps1        ← 独立 PowerShell 修复脚本
+└── guides/
+    ├── auto-update-fix.md           ← 自动更新后修复详解
+    ├── config-management.md         ← 配置备份/恢复/迁移
+    ├── chrome-plugin-deep-dive.md   ← Chrome 插件原理与排查
+    └── api-provider-switch.md       ← 安全更换 API 供应商
 ```
 
-## 原理
+## 🛠️ 能修什么
 
-Codex Desktop 通过 Microsoft Store 自动更新时：
+| 症状 | 工具 | 时间 |
+|------|------|------|
+| 自动更新后插件报错 / 消失 | SKILL.md 场景 A 或 .ps1 | 2 分钟 |
+| 换供应商后插件配置丢失 | SKILL.md 场景 B 或 guides/ | 1 分钟 |
+| Chrome 插件安装失败 | SKILL.md 场景 C | 30 秒 |
+| 想备份配置防止意外 | guides/config-management.md | 1 分钟 |
 
-1. **MSIX 内部路径变更** — marketplace 从 `resources\app\extensions\marketplace` 移到 `app\resources\plugins\openai-bundled`
-2. **运行时 hash 变更** — `C:\Users\<user>\AppData\Local\OpenAI\Codex\runtimes\cua_node\<new_hash>\`
-3. **插件版本升级** — 旧 marketplace 文件版本不匹配，Codex 不认
-4. **config.toml 被重置** — 更换供应商等操作会清空 marketplace/插件配置
-5. **`@oai/sky` exports 不完整** — Node.js 拒绝导入未声明的子路径
-6. **Chrome 需要额外系统级配置** — 注册表 + Native Messaging manifest
+## 💡 为什么会有这些问题
 
-本技能自动化处理以上所有问题。
+Codex Desktop 通过 Microsoft Store 自动更新，但：
+- 用户目录的插件文件**不会自动同步**
+- 更换 API 供应商会**重置** config.toml
+- Chrome 插件需要**系统级配置**（注册表）
 
-## 文件
+本工具集自动化处理所有这些情况。
 
-- `SKILL.md` — Reasonix 技能定义（含完整 PowerShell 脚本）
-- `README.md` — 本文件
+## 🔧 单独功能
+
+### 只修 Computer Use 报错
+→ 看 [guides/auto-update-fix.md](guides/auto-update-fix.md) 第 4 步
+
+### 只备份配置
+→ 跑 [guides/config-management.md](guides/config-management.md) 的备份脚本
+
+### 只看 Chrome 怎么配
+→ 看 [guides/chrome-plugin-deep-dive.md](guides/chrome-plugin-deep-dive.md)
+
+### 只换 API 供应商
+→ 看 [guides/api-provider-switch.md](guides/api-provider-switch.md)
+
+## 📋 给 Agent 的说明
+
+如果你的 Agent 可以加载 Reasonix skill，把 `SKILL.md` 作为技能导入即可。技能的 `description` 字段包含了触发条件，Agent 会自动判断何时使用。
+
+如果你的 Agent 不能加载 skill，让它读 `guides/` 目录下的教程按步骤执行。
