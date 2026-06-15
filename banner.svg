@@ -1,43 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0d1117"/>
-      <stop offset="100%" style="stop-color:#161b22"/>
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#161b22"/>
     </linearGradient>
   </defs>
+  
+  <!-- Background -->
   <rect width="1280" height="640" fill="url(#bg)"/>
   
-  <!-- Icon: wrench + shield -->
-  <g transform="translate(180,200)">
-    <rect x="0" y="30" width="120" height="90" rx="12" fill="#238636" opacity="0.2"/>
-    <text x="60" y="95" text-anchor="middle" font-size="64" fill="#3fb950">🛠️</text>
-  </g>
+  <!-- Large icon -->
+  <text x="640" y="180" text-anchor="middle" font-size="100" font-family="Arial,Helvetica,sans-serif">🛠️</text>
   
   <!-- Title -->
-  <text x="340" y="260" font-family="Segoe UI,Arial,sans-serif" font-size="56" font-weight="bold" fill="#e6edf3">
+  <text x="640" y="290" text-anchor="middle" font-size="58" font-weight="bold" font-family="Arial,Helvetica,sans-serif" fill="#ffffff">
     Codex Plugin Fix
   </text>
   
   <!-- Subtitle -->
-  <text x="340" y="320" font-family="Segoe UI,Arial,sans-serif" font-size="24" fill="#8b949e">
-    Codex Desktop 自动更新后插件修复工具集
+  <text x="640" y="350" text-anchor="middle" font-size="26" font-family="Arial,Helvetica,sans-serif" fill="#8b949e">
+    Codex Desktop 自动更新后插件一键修复
   </text>
   
-  <!-- Features -->
-  <g transform="translate(340,370)">
-    <rect x="0" y="0" width="160" height="36" rx="18" fill="#238636" opacity="0.15"/>
-    <text x="80" y="24" text-anchor="middle" font-size="14" font-family="Arial" fill="#3fb950">🔄 自动更新修复</text>
+  <!-- Badges -->
+  <g transform="translate(320, 420)">
+    <rect x="0" y="0" width="180" height="44" rx="22" fill="#238636" opacity="0.2" stroke="#238636" stroke-width="1"/>
+    <text x="90" y="28" text-anchor="middle" font-size="16" font-family="Arial,Helvetica,sans-serif" fill="#3fb950">🔄 更新修复</text>
     
-    <rect x="175" y="0" width="140" height="36" rx="18" fill="#1f6feb" opacity="0.15"/>
-    <text x="245" y="24" text-anchor="middle" font-size="14" font-family="Arial" fill="#58a6ff">🌐 Chrome 配置</text>
+    <rect x="195" y="0" width="180" height="44" rx="22" fill="#1f6feb" opacity="0.2" stroke="#1f6feb" stroke-width="1"/>
+    <text x="285" y="28" text-anchor="middle" font-size="16" font-family="Arial,Helvetica,sans-serif" fill="#58a6ff">🌐 Chrome 配置</text>
     
-    <rect x="330" y="0" width="120" height="36" rx="18" fill="#d29922" opacity="0.15"/>
-    <text x="390" y="24" text-anchor="middle" font-size="14" font-family="Arial" fill="#d29922">💾 备份恢复</text>
+    <rect x="390" y="0" width="180" height="44" rx="22" fill="#d29922" opacity="0.2" stroke="#d29922" stroke-width="1"/>
+    <text x="480" y="28" text-anchor="middle" font-size="16" font-family="Arial,Helvetica,sans-serif" fill="#d29922">💾 备份恢复</text>
+    
+    <rect x="585" y="0" width="150" height="44" rx="22" fill="#f78166" opacity="0.2" stroke="#f78166" stroke-width="1"/>
+    <text x="660" y="28" text-anchor="middle" font-size="16" font-family="Arial,Helvetica,sans-serif" fill="#f78166">🔑 换供应商</text>
   </g>
   
-  <!-- Bottom bar -->
-  <rect x="0" y="580" width="1280" height="60" fill="#0d1117" opacity="0.8"/>
-  <text x="640" y="618" text-anchor="middle" font-size="18" font-family="Arial" fill="#8b949e">
-    github.com/ZYY374/codex-plugin-fix  ·  PowerShell  ·  Reasonix Skill  ·  Open Source
+  <!-- Bottom text -->
+  <text x="640" y="610" text-anchor="middle" font-size="20" font-family="Arial,Helvetica,sans-serif" fill="#484f58">
+    github.com/ZYY374/codex-plugin-fix
   </text>
 </svg>
