@@ -42,9 +42,10 @@ codex-plugin-fix/
 
 | 症状 | 工具 | 时间 |
 |------|------|------|
+| **Computer Use** 插件不可用 | SKILL.md 场景 A 或 .ps1 | 2 分钟 |
 | 自动更新后插件报错 / 消失 | SKILL.md 场景 A 或 .ps1 | 2 分钟 |
 | 换供应商后插件配置丢失 | SKILL.md 场景 B 或 guides/ | 1 分钟 |
-| Chrome 插件安装失败 | SKILL.md 场景 C | 30 秒 |
+| **Chrome** 插件安装失败 | SKILL.md 场景 C | 30 秒 |
 | 想备份配置防止意外 | guides/config-management.md | 1 分钟 |
 
 ## 💡 为什么会有这些问题
@@ -58,13 +59,13 @@ Codex Desktop 通过 Microsoft Store 自动更新，但：
 
 ## 🔧 单独功能
 
-### 只修 Computer Use 报错
+### 只修 **Computer Use** 报错
 → 看 [guides/auto-update-fix.md](guides/auto-update-fix.md) 第 4 步
 
 ### 只备份配置
 → 跑 [guides/config-management.md](guides/config-management.md) 的备份脚本
 
-### 只看 Chrome 怎么配
+### 只看 **Chrome** 怎么配
 → 看 [guides/chrome-plugin-deep-dive.md](guides/chrome-plugin-deep-dive.md)
 
 ### 只换 API 供应商
