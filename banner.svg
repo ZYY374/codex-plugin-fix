@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#161b22"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  
+  <!-- Icon: wrench + shield -->
+  <g transform="translate(180,200)">
+    <rect x="0" y="30" width="120" height="90" rx="12" fill="#238636" opacity="0.2"/>
+    <text x="60" y="95" text-anchor="middle" font-size="64" fill="#3fb950">🛠️</text>
+  </g>
+  
+  <!-- Title -->
+  <text x="340" y="260" font-family="Segoe UI,Arial,sans-serif" font-size="56" font-weight="bold" fill="#e6edf3">
+    Codex Plugin Fix
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="340" y="320" font-family="Segoe UI,Arial,sans-serif" font-size="24" fill="#8b949e">
+    Codex Desktop 自动更新后插件修复工具集
+  </text>
+  
+  <!-- Features -->
+  <g transform="translate(340,370)">
+    <rect x="0" y="0" width="160" height="36" rx="18" fill="#238636" opacity="0.15"/>
+    <text x="80" y="24" text-anchor="middle" font-size="14" font-family="Arial" fill="#3fb950">🔄 自动更新修复</text>
+    
+    <rect x="175" y="0" width="140" height="36" rx="18" fill="#1f6feb" opacity="0.15"/>
+    <text x="245" y="24" text-anchor="middle" font-size="14" font-family="Arial" fill="#58a6ff">🌐 Chrome 配置</text>
+    
+    <rect x="330" y="0" width="120" height="36" rx="18" fill="#d29922" opacity="0.15"/>
+    <text x="390" y="24" text-anchor="middle" font-size="14" font-family="Arial" fill="#d29922">💾 备份恢复</text>
+  </g>
+  
+  <!-- Bottom bar -->
+  <rect x="0" y="580" width="1280" height="60" fill="#0d1117" opacity="0.8"/>
+  <text x="640" y="618" text-anchor="middle" font-size="18" font-family="Arial" fill="#8b949e">
+    github.com/ZYY374/codex-plugin-fix  ·  PowerShell  ·  Reasonix Skill  ·  Open Source
+  </text>
+</svg>
