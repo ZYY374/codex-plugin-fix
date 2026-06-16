@@ -15,7 +15,7 @@ $backupDir = "$codexHome\backups"
 # ============================================================
 # 1. FIND CODEX — multi-method, fallback chain
 # ============================================================
-Write-Host "=== [1/6] 检测 Codex 安装 ===" -ForegroundColor Cyan
+Write-Host "=== [1/7] 检测 Codex 安装 ===" -ForegroundColor Cyan
 
 $msixMkt = $null
 $codexVersion = $null
@@ -92,7 +92,7 @@ Write-Host "  Marketplace 源: $msixMkt" -ForegroundColor Green
 # ============================================================
 # 2. BACKUP config.toml
 # ============================================================
-Write-Host "`n=== [2/6] 备份 config.toml ===" -ForegroundColor Cyan
+Write-Host "`n=== [2/7] 备份 config.toml ===" -ForegroundColor Cyan
 
 if (-not (Test-Path $backupDir)) {
     [System.IO.Directory]::CreateDirectory($backupDir) | Out-Null
@@ -109,7 +109,7 @@ if (Test-Path "$codexHome\config.toml") {
 # ============================================================
 # 3. SYNC MARKETPLACE
 # ============================================================
-Write-Host "`n=== [3/6] 同步 marketplace 文件 ===" -ForegroundColor Cyan
+Write-Host "`n=== [3/7] 同步 marketplace 文件 ===" -ForegroundColor Cyan
 
 $mktDest = "$codexHome\marketplaces\openai-bundled"
 
@@ -142,7 +142,7 @@ Write-Host "  复制完成: $fileCount 个文件" -ForegroundColor Green
 # ============================================================
 # 4. FIX @oai/sky EXPORTS
 # ============================================================
-Write-Host "`n=== [4/6] 修复 @oai/sky exports ===" -ForegroundColor Cyan
+Write-Host "`n=== [4/7] 修复 @oai/sky exports ===" -ForegroundColor Cyan
 
 $skyPkgPaths = @()
 
@@ -188,9 +188,9 @@ if ($fixedCount -eq 0) {
 }
 
 # ============================================================
-# 5. UPDATE config.toml (idempotent)
+# 5. UPDATE config.toml (idempotent) — includes sandbox for CU
 # ============================================================
-Write-Host "`n=== [5/6] 更新 config.toml ===" -ForegroundColor Cyan
+Write-Host "`n=== [5/7] 更新 config.toml ===" -ForegroundColor Cyan
 
 $configPath = "$codexHome\config.toml"
 if (-not (Test-Path $configPath)) {
@@ -296,7 +296,21 @@ if ($content -match '\[features\]') {
     Write-Host "  已添加 [features] 段" -ForegroundColor Green
 }
 
-# 5e. Update BROWSER_USE_CODEX_APP_VERSION
+# 5f. Windows sandbox — required for Computer Use native pipe
+Write-Host "  检查 [windows] sandbox..." -ForegroundColor Gray
+if ($content -match '\[windows\]') {
+    if ($content -match 'sandbox\s*=\s*"unelevated"') {
+        Write-Host "  [OK] sandbox = unelevated" -ForegroundColor Green
+    } else {
+        $content = $content -replace '(\[windows\][\r\n]+)', "`$1sandbox = `"unelevated`"`r`n"
+        Write-Host "  已设置 sandbox = unelevated" -ForegroundColor Green
+    }
+} else {
+    $content = $content.TrimEnd() + "`r`n`r`n[windows]`r`nsandbox = `"unelevated`"`r`n"
+    Write-Host "  已添加 [windows] sandbox = unelevated" -ForegroundColor Green
+}
+
+# 5g. Update BROWSER_USE_CODEX_APP_VERSION
 $pluginJson = "$mktDest\plugins\chrome\.codex-plugin\plugin.json"
 if (Test-Path $pluginJson) {
     $pluginVer = (Get-Content $pluginJson -Raw -Encoding UTF8 | ConvertFrom-Json).version
@@ -312,9 +326,45 @@ if (Test-Path $pluginJson) {
 Write-Host "  config.toml 已保存" -ForegroundColor Green
 
 # ============================================================
-# 6. CHROME NATIVE MESSAGING
+# 6. COMPUTER USE RUNTIME FIXES
 # ============================================================
-Write-Host "`n=== [6/6] Chrome Native Messaging 配置 ===" -ForegroundColor Cyan
+Write-Host "`n=== [6/7] Computer Use 运行时修复 ===" -ForegroundColor Cyan
+
+# 6a. Set CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE environment variable
+$cuEnvName = "CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE"
+$cuEnvCurrent = [Environment]::GetEnvironmentVariable($cuEnvName, "User")
+if ($cuEnvCurrent -ne "1") {
+    [Environment]::SetEnvironmentVariable($cuEnvName, "1", "User")
+    # Also set in current process so it's present for verification
+    $env:CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE = "1"
+    Write-Host "  已设置环境变量: $cuEnvName = 1 (用户级)" -ForegroundColor Green
+} else {
+    Write-Host "  [OK] 环境变量: $cuEnvName = 1" -ForegroundColor Green
+}
+
+# 6b. Verify helper_transport.js exists (needed for native pipe)
+$helperTransport = "$mktDest\plugins\computer-use\scripts\helper_transport.js"
+if (Test-Path $helperTransport) {
+    $htSize = (Get-Item $helperTransport).Length
+    Write-Host "  [OK] helper_transport.js ($htSize bytes)" -ForegroundColor Green
+} else {
+    Write-Host "  [WARN] helper_transport.js 缺失 — Computer Use 可能无法启动 native pipe" -ForegroundColor Yellow
+    Write-Host "         如果 MSIX 中也不存在，可能需要兼容版实现" -ForegroundColor Yellow
+}
+
+# 6c. Verify codex-computer-use.exe exists
+$cuExe = "$mktDest\plugins\computer-use\scripts\codex-computer-use.exe"
+if (Test-Path $cuExe) {
+    $cuExeVer = (Get-Item $cuExe).Length
+    Write-Host "  [OK] codex-computer-use.exe ($cuExeVer bytes)" -ForegroundColor Green
+} else {
+    Write-Host "  [WARN] codex-computer-use.exe 缺失 — Computer Use binary 不完整" -ForegroundColor Yellow
+}
+
+# ============================================================
+# 7. CHROME NATIVE MESSAGING
+# ============================================================
+Write-Host "`n=== [7/7] Chrome Native Messaging 配置 ===" -ForegroundColor Cyan
 
 $chromePlugins = "$mktDest\plugins\chrome"
 $extIdFile = "$chromePlugins\.codex-plugin\extension-id.json"

@@ -29,9 +29,10 @@ Codex 自动更新
   → 备份 config.toml
   → 同步 marketplace 文件
   → 修复 @oai/sky exports
-  → 更新 config.toml（幂等，不产生重复段）
+  → 更新 config.toml（幂等：hash + marketplace + plugins + features + sandbox）
+  → Computer Use 运行时修复（环境变量 + helper_transport + .exe）
   → Chrome 特有：注册表 + manifest
-  → 重启 Codex
+  → 清理缓存 → 重启 Codex
 ```
 
 ---
@@ -239,6 +240,16 @@ if ($content -notmatch '\[features\]') {
 }
 ```
 
+### 5f. 确保 Windows sandbox 设置（Computer Use native pipe 必需）
+
+```powershell
+if ($content -notmatch '\[windows\]') {
+    $content += "`r`n`r`n[windows]`r`nsandbox = `"unelevated`"`r`n"
+} elseif ($content -notmatch 'sandbox\s*=\s*"unelevated"') {
+    $content = $content -replace '(\[windows\][\r\n]+)', "`$1sandbox = `"unelevated`"`r`n"
+}
+```
+
 ### 写入（EFS-safe）
 
 ```powershell
@@ -247,7 +258,50 @@ if ($content -notmatch '\[features\]') {
 
 ---
 
-## 6. Chrome 插件专属修复
+## 6. Computer Use 运行时修复
+
+Computer Use 插件要正常工作，除了 marketplace 和 config，还需要环境变量和关键文件。
+
+### 6a. 设置环境变量（用户级，永久）
+
+```powershell
+$cuEnvName = "CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE"
+$cuEnvCurrent = [Environment]::GetEnvironmentVariable($cuEnvName, "User")
+if ($cuEnvCurrent -ne "1") {
+    [Environment]::SetEnvironmentVariable($cuEnvName, "1", "User")
+    Write-Host "已设置: $cuEnvName = 1"
+} else {
+    Write-Host "[OK] $cuEnvName = 1"
+}
+```
+
+**⚠️ critical**: 缺少此变量则 Computer Use 在 Windows 上不认 native pipe，CU 图标不会出现。
+
+### 6b. 检查 helper_transport.js
+
+```powershell
+$helper = "$env:USERPROFILE\.codex\marketplaces\openai-bundled\plugins\computer-use\scripts\helper_transport.js"
+if (Test-Path $helper) {
+    Write-Host "[OK] helper_transport.js: $((Get-Item $helper).Length) bytes"
+} else {
+    Write-Host "[WARN] helper_transport.js 缺失 — 如果 MSIX 也没有，需兼容版实现"
+}
+```
+
+### 6c. 检查 codex-computer-use.exe
+
+```powershell
+$cuExe = "$env:USERPROFILE\.codex\marketplaces\openai-bundled\plugins\computer-use\scripts\codex-computer-use.exe"
+if (Test-Path $cuExe) {
+    Write-Host "[OK] codex-computer-use.exe: $((Get-Item $cuExe).Length) bytes"
+} else {
+    Write-Host "[WARN] codex-computer-use.exe 缺失 — Computer Use binary 不完整"
+}
+```
+
+---
+
+## 7. Chrome 插件专属修复
 
 Chrome 插件安装需要 3 样东西：
 
@@ -290,7 +344,7 @@ $appConfig = @{
 
 ---
 
-## 7. 清理插件缓存
+## 8. 清理插件缓存
 
 ```powershell
 cmd /c "if exist `"$env:USERPROFILE\.codex\plugins\cache\openai-bundled`" rmdir /s /q `"$env:USERPROFILE\.codex\plugins\cache\openai-bundled`"" 2>$null
@@ -298,7 +352,7 @@ cmd /c "if exist `"$env:USERPROFILE\.codex\plugins\cache\openai-bundled`" rmdir 
 
 ---
 
-## 8. 最终验证
+## 9. 最终验证
 
 ```powershell
 $mktDest = "$env:USERPROFILE\.codex\marketplaces\openai-bundled"
@@ -306,7 +360,10 @@ Write-Host "Marketplace files: $((Get-ChildItem $mktDest -Recurse -File).Count)"
 Write-Host "Plugin version: $((Get-Content '$mktDest\plugins\computer-use\.codex-plugin\plugin.json' -Raw|ConvertFrom-Json).version)"
 Write-Host "@oai/sky subpath: $((Get-Content '$mktDest\plugins\computer-use\node_modules\@oai\sky\package.json' -Raw|ConvertFrom-Json).exports.PSObject.Properties.Name -contains './dist/.../computer_use_client_base.js')"
 Write-Host "config marketplace: $(Select-String -Path $env:USERPROFILE\.codex\config.toml -Pattern 'source = .*marketplaces.*openai-bundled')"
-Write-Host "Chrome registry: $(cmd /c 'reg query HKCU\Software\Google\Chrome\NativeMessagingHosts\com.openai.codexextension 2>&1')"
+Write-Host "Windows sandbox: $(Select-String -Path $env:USERPROFILE\.codex\config.toml -Pattern 'sandbox')"
+Write-Host "Env CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE: $([Environment]::GetEnvironmentVariable('CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE','User'))"
+Write-Host "helper_transport.js: $(if(Test-Path '$mktDest\plugins\computer-use\scripts\helper_transport.js'){'[OK]'}else{'[WARN]'})"
+Write-Host "codex-computer-use.exe: $(if(Test-Path '$mktDest\plugins\computer-use\scripts\codex-computer-use.exe'){'[OK]'}else{'[WARN]'})"
 ```
 
 ---
@@ -323,5 +380,7 @@ Write-Host "Chrome registry: $(cmd /c 'reg query HKCU\Software\Google\Chrome\Nat
 | config.toml 写不进去 | EFS 加密 + 权限限制 | 用 `[System.IO.File]::WriteAllBytes` |
 | Chrome 插件装不上 | 注册表/manifest 未创建 | 执行步骤 6 |
 | 插件版本不匹配 | Codex 更了新版本 | 重跑步骤 2-3 从新 MSIX 复制 |
+| **插件有但 Codex 用不了** | sandbox/envar/helper_transport 缺失 | 执行步骤 5f + 6 |
+| **CU 图标不出现** | 缺少 `CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE=1` | 执行步骤 6a + 重启 |
 | **marketplace 段重复** | 多次修复插入重复配置 | 使用步骤 5b 的幂等写法或运行 `fix-codex-plugins.ps1`（自动清理） |
 | **脚本编码损坏** | 下载/复制导致编码错误 | 直接按手工步骤执行，或用 `Get-Content -Raw` 检查脚本内容 |
