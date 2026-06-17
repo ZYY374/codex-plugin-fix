@@ -342,8 +342,14 @@ if ($content -match '\[windows\]') {
     if ($content -match 'sandbox\s*=\s*"unelevated"') {
         Write-Host "  [OK] sandbox = unelevated" -ForegroundColor Green
     } else {
-        $content = $content -replace '(\[windows\][\r\n]+)', "`$1sandbox = `"unelevated`"`r`n"
-        Write-Host "  已设置 sandbox = unelevated" -ForegroundColor Green
+        # Replace any existing sandbox value, or append if missing
+        if ($content -match 'sandbox\s*=\s*"[^"]*"') {
+            $content = $content -replace 'sandbox\s*=\s*"[^"]*"', 'sandbox = "unelevated"'
+            Write-Host "  已设置 sandbox = unelevated" -ForegroundColor Green
+        } else {
+            $content = $content -replace '(\[windows\][\r\n]+)', "`$1sandbox = `"unelevated`"`r`n"
+            Write-Host "  已设置 sandbox = unelevated" -ForegroundColor Green
+        }
     }
 } else {
     $content = $content.TrimEnd() + "`r`n`r`n[windows]`r`nsandbox = `"unelevated`"`r`n"
