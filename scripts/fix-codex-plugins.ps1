@@ -139,6 +139,37 @@ Copy-EFS $msixMkt $mktDest
 $fileCount = (Get-ChildItem $mktDest -Recurse -File -ErrorAction SilentlyContinue).Count
 Write-Host "  复制完成: $fileCount 个文件" -ForegroundColor Green
 
+# Resolve runtime path (needed for @oai/sky copy and hash updates)
+$runtimeBase = "$env:LOCALAPPDATA\OpenAI\Codex\runtimes\cua_node"
+$latestHash = if (Test-Path $runtimeBase) {
+    (Get-ChildItem $runtimeBase -Directory -ErrorAction SilentlyContinue | Sort-Object Name)[0].Name
+} else { $null }
+
+# 3b. 补充 computer-use 的 @oai/sky（MSIX 通常不含此模块，需从运行时补）
+$cuNodeModules = "$mktDest\plugins\computer-use\node_modules"
+$cuSkyDest = "$cuNodeModules\@oai\sky"
+if (-not (Test-Path $cuSkyDest)) {
+    $runtimeSky = "$runtimeBase\$latestHash\bin\node_modules\@oai\sky"
+    if (Test-Path $runtimeSky) {
+        Write-Host "  从运行时补充 @oai/sky..." -ForegroundColor Yellow
+        Copy-EFS $runtimeSky $cuSkyDest
+        Write-Host "  已补充 @oai/sky 到 marketplace 插件" -ForegroundColor Green
+    } else {
+        Write-Host "  [WARN] 运行时也没有 @oai/sky，Computer Use 可能不完整" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  [OK] @oai/sky 已存在于 marketplace 插件" -ForegroundColor Green
+}
+
+# 3c. Verify computer-use plugin integrity
+$cuPluginJson = "$mktDest\plugins\computer-use\.codex-plugin\plugin.json"
+if (Test-Path $cuPluginJson) {
+    $cuVer = (Get-Content $cuPluginJson -Raw -Encoding UTF8 | ConvertFrom-Json).version
+    Write-Host "  Computer Use 插件版本: $cuVer" -ForegroundColor Green
+} else {
+    Write-Host "  [WARN] computer-use plugin.json 缺失 — 插件不完整，Codex 可能找不到" -ForegroundColor Yellow
+}
+
 # ============================================================
 # 4. FIX @oai/sky EXPORTS
 # ============================================================
@@ -202,14 +233,6 @@ $bytes = [System.IO.File]::ReadAllBytes($configPath)
 $content = [System.Text.Encoding]::UTF8.GetString($bytes)
 
 # 5a. Update runtime hash references (all old hashes → current)
-$runtimeBase = "$env:LOCALAPPDATA\OpenAI\Codex\runtimes\cua_node"
-$currentHashes = @()
-if (Test-Path $runtimeBase) {
-    $currentHashes = Get-ChildItem $runtimeBase -Directory -ErrorAction SilentlyContinue |
-        Select-Object -ExpandProperty Name
-}
-$latestHash = if ($currentHashes) { ($currentHashes | Sort-Object)[0] } else { $null }
-
 if ($latestHash) {
     # Find all 32-char hex hashes in config that look like old runtime paths
     $hashPattern = '[0-9a-f]{32}'
@@ -435,5 +458,8 @@ if ($skyPkgPaths.Count -gt 0 -and (Test-Path $skyPkgPaths[0])) {
     $hasSubpath = ($skyExports | Get-Member -MemberType NoteProperty).Name -contains $requiredExport
     Write-Host "  @oai/sky exports 修复: $(if($hasSubpath){'[OK]'}else{'[FAIL]'})"
 }
+Write-Host "  @oai/sky in marketplace: $(if(Test-Path '$cuSkyDest'){'[OK]'}else{'[MISSING]'})"
+Write-Host "  sandbox: $(if((Get-Content '$configPath' -Raw) -match 'sandbox\s*=\s*\"unelevated\"'){'unelevated [OK]'}else{'[CHECK]'})"
+Write-Host "  Env CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE: $([Environment]::GetEnvironmentVariable('CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE','User'))"
 Write-Host "  备份: $backupPath"
 Write-Host "`n  请重启 Codex Desktop 使修复生效。" -ForegroundColor Yellow

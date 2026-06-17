@@ -27,7 +27,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\fix-codex-plugins.p
 Codex 自动更新
   → 检测 Codex 安装（Appx / WindowsApps 扫描 / LocalAppData）
   → 备份 config.toml
-  → 同步 marketplace 文件
+  → 同步 marketplace 文件 + 补充 @oai/sky (从运行时)
+  → 验证插件完整性 (plugin.json)
   → 修复 @oai/sky exports
   → 更新 config.toml（幂等：hash + marketplace + plugins + features + sandbox）
   → Computer Use 运行时修复（环境变量 + helper_transport + .exe）
