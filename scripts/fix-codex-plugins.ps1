@@ -124,13 +124,29 @@ function Copy-EFS {
         if ($_.PSIsContainer) {
             Copy-EFS $_.FullName $destItem
         } else {
-            [System.IO.File]::WriteAllBytes($destItem, [System.IO.File]::ReadAllBytes($_.FullName))
+            try {
+                [System.IO.File]::WriteAllBytes($destItem, [System.IO.File]::ReadAllBytes($_.FullName))
+            } catch {
+                Write-Host "    skip locked: $($_.Name)" -ForegroundColor DarkGray
+            }
         }
     }
 }
 
-# Clean destination first (use cmd rmdir to avoid EFS issues)
+# Clean destination first (ignore locked files — Codex may be running)
+$oldEAP = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
 cmd /c "if exist `"$mktDest`" rmdir /s /q `"$mktDest`"" 2>$null
+# Fallback: if rmdir failed due to locks, delete what we can with PowerShell
+if (Test-Path $mktDest) {
+    Get-ChildItem $mktDest -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+        Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+    }
+    Get-ChildItem $mktDest -Recurse -Directory -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending |
+        ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+}
+$ErrorActionPreference = $oldEAP
 [System.IO.Directory]::CreateDirectory($mktDest) | Out-Null
 
 Write-Host "  从 MSIX 复制 marketplace（EFS-safe）..."
@@ -365,14 +381,13 @@ if ($cuEnvCurrent -ne "1") {
     Write-Host "  [OK] 环境变量: $cuEnvName = 1" -ForegroundColor Green
 }
 
-# 6b. Verify helper_transport.js exists (needed for native pipe)
+# 6b. Verify helper_transport.js exists (needed for native pipe on older versions)
 $helperTransport = "$mktDest\plugins\computer-use\scripts\helper_transport.js"
 if (Test-Path $helperTransport) {
     $htSize = (Get-Item $helperTransport).Length
     Write-Host "  [OK] helper_transport.js ($htSize bytes)" -ForegroundColor Green
 } else {
-    Write-Host "  [WARN] helper_transport.js 缺失 — Computer Use 可能无法启动 native pipe" -ForegroundColor Yellow
-    Write-Host "         如果 MSIX 中也不存在，可能需要兼容版实现" -ForegroundColor Yellow
+    Write-Host "  helper_transport.js 不存在（26.611+ 已内置，可忽略）" -ForegroundColor Gray
 }
 
 # 6c. Verify codex-computer-use.exe exists
@@ -381,7 +396,7 @@ if (Test-Path $cuExe) {
     $cuExeVer = (Get-Item $cuExe).Length
     Write-Host "  [OK] codex-computer-use.exe ($cuExeVer bytes)" -ForegroundColor Green
 } else {
-    Write-Host "  [WARN] codex-computer-use.exe 缺失 — Computer Use binary 不完整" -ForegroundColor Yellow
+    Write-Host "  codex-computer-use.exe 不存在（26.611+ 已内置，可忽略）" -ForegroundColor Gray
 }
 
 # ============================================================
@@ -458,8 +473,8 @@ if ($skyPkgPaths.Count -gt 0 -and (Test-Path $skyPkgPaths[0])) {
     $hasSubpath = ($skyExports | Get-Member -MemberType NoteProperty).Name -contains $requiredExport
     Write-Host "  @oai/sky exports 修复: $(if($hasSubpath){'[OK]'}else{'[FAIL]'})"
 }
-Write-Host "  @oai/sky in marketplace: $(if(Test-Path '$cuSkyDest'){'[OK]'}else{'[MISSING]'})"
-Write-Host "  sandbox: $(if((Get-Content '$configPath' -Raw) -match 'sandbox\s*=\s*\"unelevated\"'){'unelevated [OK]'}else{'[CHECK]'})"
+Write-Host "  @oai/sky in marketplace: $(if(Test-Path "$mktDest\plugins\computer-use\node_modules\@oai\sky"){'[OK]'}else{'[MISSING]'})"
+Write-Host "  sandbox: $(if((Get-Content $configPath -Raw) -match 'sandbox\s*=\s*\"unelevated\"'){'unelevated [OK]'}else{'[CHECK]'})"
 Write-Host "  Env CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE: $([Environment]::GetEnvironmentVariable('CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE','User'))"
 Write-Host "  备份: $backupPath"
 Write-Host "`n  请重启 Codex Desktop 使修复生效。" -ForegroundColor Yellow
