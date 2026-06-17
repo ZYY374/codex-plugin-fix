@@ -124,10 +124,11 @@ function Copy-EFS {
         if ($_.PSIsContainer) {
             Copy-EFS $_.FullName $destItem
         } else {
+            $fname = $_.Name
             try {
                 [System.IO.File]::WriteAllBytes($destItem, [System.IO.File]::ReadAllBytes($_.FullName))
             } catch {
-                Write-Host "    skip locked: $($_.Name)" -ForegroundColor DarkGray
+                Write-Host "    skip locked: $fname" -ForegroundColor DarkGray
             }
         }
     }
