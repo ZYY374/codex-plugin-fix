@@ -4,7 +4,7 @@
 
 ## 🚀 快速开始
 
-### 如果你是 Reasonix 用户
+### 如果你使用 Agent 平台
 
 加载技能：
 ```
@@ -16,7 +16,7 @@
 /codex-plugin-fix
 ```
 
-### 如果你不用 Reasonix
+### 如果你不用 Agent 平台
 
 直接跑脚本：
 ```powershell
@@ -27,7 +27,7 @@ powershell -ExecutionPolicy Bypass -File fix-codex-plugins.ps1
 
 ```
 codex-plugin-fix/
-├── SKILL.md                         ← Reasonix 技能（Agent 直接读）
+├── SKILL.md                         ← Agent 技能文件
 ├── README.md                        ← 你在这里
 ├── scripts/
 │   └── fix-codex-plugins.ps1        ← 独立 PowerShell 修复脚本
@@ -73,6 +73,6 @@ Codex Desktop 通过 Microsoft Store 自动更新，但：
 
 ## 📋 给 Agent 的说明
 
-如果你的 Agent 可以加载 Reasonix skill，把 `SKILL.md` 作为技能导入即可。技能的 `description` 字段包含了触发条件，Agent 会自动判断何时使用。
+如果你的 Agent 平台（如 Hermes、Reasonix 等）支持 skill，直接将本仓库作为技能安装即可。Agent 会自动根据场景触发对应修复流程。
 
 如果你的 Agent 不能加载 skill，让它读 `guides/` 目录下的教程按步骤执行。

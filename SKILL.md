@@ -399,10 +399,10 @@ Write-Host "Restored from: $($latestConfig.Name)"
 
 ## 给其他 Agent 的使用说明
 
-本技能设计为 Reasonix skill 格式。其他用户可以通过以下方式加载：
+本技能支持多种 Agent 平台（Hermes / Reasonix 等）。其他用户可以通过以下方式加载：
 
 1. **直接安装**：`/install-skill https://github.com/ZYY374/codex-plugin-fix`
-2. **手动复制**：将本文件放入 `.reasonix/skills/codex-plugin-fix/SKILL.md`
-3. **独立脚本**：运行 `scripts/fix-codex-plugins.ps1`（无需 Reasonix）
+2. **手动复制**：将本文件放入 `skills 目录下的 codex-plugin-fix/SKILL.md（如 `~/.hermes/skills/` 或 `.reasonix/skills/`）`
+3. **独立脚本**：运行 `scripts/fix-codex-plugins.ps1`（无需 Agent 平台，独立运行）
 
 技能会先跑 [诊断](#0-诊断先查清楚再动手)，然后根据输出跳转到对应场景执行修复。

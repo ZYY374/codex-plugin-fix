@@ -1,5 +1,5 @@
 # fix-codex-plugins.ps1
-# 独立修复脚本 — 无需 Reasonix，PowerShell 直接运行
+# 独立修复脚本 — 独立 PowerShell 脚本，无需 Agent 平台
 # 用法: powershell -ExecutionPolicy Bypass -File fix-codex-plugins.ps1
 
 $ErrorActionPreference = "Stop"
