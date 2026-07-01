@@ -33,6 +33,27 @@ Write-Host "  config browser 插件: $($config -match 'browser@openai-bundled')"
 Write-Host "  config chrome 插件: $($config -match 'chrome@openai-bundled')"
 Write-Host "  config computer_use: $($config -match 'computer_use = true')"
 
+# 代理检测
+& {
+    $proxyEnv = $env:HTTPS_PROXY, $env:HTTP_PROXY, $env:https_proxy, $env:http_proxy | Where-Object { $_ }
+    if ($proxyEnv) { Write-Host "  代理 (env): $($proxyEnv -join ', ')" }
+    $winhttp = cmd /c "netsh winhttp show proxy 2>&1"
+    if ($winhttp -match "代理服务器") { Write-Host "  代理 (winhttp): $($winhttp -match '\d+\.\d+\.\d+\.\d+:\d+' | Out-String).Trim()" }
+}
+
+# v0.142.5+ js_repl 检查
+try {
+    $features = codex features list 2>$null
+    $jsReplLine = ($features | Select-String "js_repl").ToString()
+    Write-Host "  js_repl 状态: $jsReplLine"
+    if ($jsReplLine -match "removed") {
+        Write-Host "  ⚠️  js_repl 已被移除 (v0.142.5+) — MCP 工具无法暴露" -ForegroundColor Yellow
+        $global:jsReplRemoved = $true
+    }
+} catch {
+    Write-Host "  js_repl 状态: 无法检查"
+}
+
 # ========== 复制 marketplace ==========
 Write-Host "[2/8] 同步 marketplace 文件..." -ForegroundColor Cyan
 
@@ -184,6 +205,11 @@ if ($config2 -notmatch '\[marketplaces\.openai-bundled\]') { Write-Host "  ❌ c
 if ($config2 -notmatch 'computer-use@openai-bundled') { Write-Host "  ❌ config computer-use 插件缺失" -ForegroundColor Red; $ok = $false }
 if ($config2 -notmatch 'computer_use = true') { Write-Host "  ❌ config computer_use 未开启" -ForegroundColor Red; $ok = $false }
 
+if ($global:jsReplRemoved) {
+    Write-Host ""
+    Write-Host "⚠️  检测到 js_repl = removed (v0.142.5+) — 文件修复完成，但 MCP 工具无法暴露给模型" -ForegroundColor Yellow
+    Write-Host "   替代方案: 降级 Codex 或使用 Hermes computer_use 工具"
+}
 if ($ok) {
     Write-Host ""
     Write-Host "✅ 全部修复完成！请重启 Codex Desktop" -ForegroundColor Green

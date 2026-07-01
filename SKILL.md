@@ -47,6 +47,18 @@ Write-Host "Has computer_use: $($config -match 'computer_use = true')"
 Write-Host "Has browser plugin: $($config -match 'browser@openai-bundled')"
 Write-Host "Has chrome plugin: $($config -match 'chrome@openai-bundled')"
 Write-Host "Runtime hash in config matches: $($config -match $runtimeHash)"
+
+# 5. v0.142.5+ js_repl 特性检查
+try {
+    $features = codex features list 2>$null
+    $jsReplLine = ($features | Select-String "js_repl").ToString()
+    Write-Host "js_repl status: $jsReplLine"
+    if ($jsReplLine -match "removed") {
+        Write-Host "⚠️  js_repl 已被移除 (v0.142.5+) — MCP 工具无法暴露给模型，本轮修复无法完全生效"
+    }
+} catch {
+    Write-Host "js_repl status: unable to check"
+}
 ```
 
 输出解读：
@@ -59,6 +71,7 @@ Write-Host "Runtime hash in config matches: $($config -match $runtimeHash)"
 | Has computer_use | False | [场景 A-步骤 5e](#a5e-确保-features-开启) |
 | Has browser/chrome plugin | False | [场景 A-步骤 5c](#a5c-确保插件已启用) |
 | Runtime hash matches | False | [场景 A-步骤 5a](#a5a-更新运行时-hash) |
+| js_repl = removed | True (v0.142.5+) | ⚠️ 无解 — 见下方「v0.142.5+ 限制」 |
 
 ---
 
@@ -223,6 +236,27 @@ if ($content -notmatch 'computer_use = true') {
 cmd /c "rmdir /s /q `"$codexHome\plugins\cache\openai-bundled`"" 2>$null
 ```
 
+### ⚠️ v0.142.5+ 已知限制
+
+Codex v0.142.5 及更高版本中，`js_repl` 和 `tool_search` 特性被标记为 `removed`。
+**即使所有文件同步正确、config.toml 配置完美，MCP 工具（`mcp__node_repl__js`）也无法暴露给模型。**
+
+验证方法：
+```powershell
+codex features list | Select-String "js_repl"
+```
+如果输出包含 `removed`，以下功能将不可用：
+- Computer Use 插件（`sky.list_apps()`, `sky.click()` 等）
+- Codex 内置 browser / chrome 插件
+
+**替代方案：**
+- 降级到 Codex v0.141.x 或更早版本
+- 使用 Hermes 的 `computer_use` 工具（功能等价，无此限制）
+
+本工具集修复的是**文件层面**的问题（marketplace 同步、exports、config）。架构层面的特性移除目前无法通过文件修复解决。
+
+---
+
 ### A8. 最终验证
 
 ```powershell
@@ -359,6 +393,7 @@ Write-Host "Restored from: $($latestConfig.Name)"
 | config.toml 写不进去 | EFS 加密 + 权限 | `[System.IO.File]::WriteAllBytes` |
 | Chrome 装不上 | 注册表/manifest 缺失 | [场景 C](#场景-cchrome-插件专属) |
 | 版本不匹配 | Codex 又更新了 | 重跑 [A2](#a2-同步-marketplace-文件) |
+| js_repl = removed | v0.142.5+ 架构变更 | ⚠️ 文件修复无效，需降级或用 Hermes computer-use |
 
 ---
 
