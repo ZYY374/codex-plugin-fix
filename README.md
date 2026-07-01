@@ -4,7 +4,7 @@
 
 ## 🚀 快速开始
 
-### 如果你使用 Agent 平台
+### 如果你用 Codex
 
 加载技能：
 ```
@@ -16,7 +16,7 @@
 /codex-plugin-fix
 ```
 
-### 如果你不用 Agent 平台
+### 如果你不用 Codex
 
 直接跑脚本：
 ```powershell
